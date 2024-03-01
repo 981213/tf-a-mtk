@@ -1,0 +1,36 @@
+name: Build BL2 for UART recovery
+
+on:
+  push:
+    tags:
+      - "v*-mtk"
+
+jobs:
+  build-ram-bl2:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Toolchain
+        run: sudo apt-get update && sudo apt-get install gcc-aarch64-linux-gnu device-tree-compiler
+
+      - name: Build Binaries
+        run: |
+          OUT_DIR=output
+          mkdir ${OUT_DIR}
+          for cfg in $(ls configs | grep ram_defconfig)
+          do
+              BUILD_NAME=$(echo ${cfg%'_defconfig'} | tr '_' '-')
+              TARGET_NAME=$(echo ${cfg%%'_'*} | tr '_' '-')
+              echo $BUILD_NAME $TARGET_NAME
+              make $cfg
+              make CROSS_COMPILE=aarch64-linux-gnu- bl2 -j16 || exit -1
+              cp build/${TARGET_NAME}/release/bl2.bin ${OUT_DIR}/bl2-${BUILD_NAME}.bin
+              rm -rf build
+          done
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: output/*.bin
